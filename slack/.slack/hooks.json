@@ -1,0 +1,8 @@
+{
+  "hooks": {
+    "get-manifest": "python3 .slack/get-manifest.py"
+  },
+  "config": {
+    "protocol-version": ["default"]
+  }
+}

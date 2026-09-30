@@ -40,9 +40,12 @@ object NetworkModule {
 
     private fun slackAuthInterceptor(tokenHolder: TokenHolder): Interceptor = Interceptor { chain ->
         val request = chain.request()
+        val path = request.url.encodedPath
+        val skip = path.contains("oauth.v2") || path.contains("tooling.tokens")
         val host = request.url.host
         val token = tokenHolder.token
-        val needsAuth = token.isNotBlank() &&
+        val needsAuth = !skip &&
+            token.isNotBlank() &&
             (host == "files.slack.com" || host.endsWith(".slack.com")) &&
             request.header("Authorization").isNullOrBlank()
         val next = if (needsAuth) {

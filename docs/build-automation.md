@@ -22,6 +22,9 @@ Day-to-day versioning is in [releases.md](releases.md). Commit message rules are
 | [`release-please-config.json`](../release-please-config.json) | SemVer, `CHANGELOG.md`, tags `vX.Y.Z` |
 | [`scripts/install-git-hooks.sh`](../scripts/install-git-hooks.sh) | Local `commit-msg` hook |
 | [`scripts/publish-fdroid-pages.sh`](../scripts/publish-fdroid-pages.sh) | One-command F-Droid Pages publish |
+| [`scripts/slack-sync.sh`](../scripts/slack-sync.sh) | Validate / install the Slack app from `slack/manifest.json` |
+| [`scripts/slack-config-rotate.sh`](../scripts/slack-config-rotate.sh) | Rotate 12h app configuration tokens (local / Manifest API only) |
+| [`.github/workflows/slack-manifest.yml`](../.github/workflows/slack-manifest.yml) | Validate (and on `master`, update) the Slack app |
 
 Release-please only runs when `github.repository` is `Burton-Workspaces/burton-slack`. Forks still get CI tests.
 
@@ -101,7 +104,7 @@ If these secrets are empty, **Release assets** fails at “Configure release sig
 **Settings → Branches → Add rule** for `master`:
 
 - Require status checks: **Unit tests**, **Conventional commits**
-- Do not require **Release** / **Release assets** on every push; those run after version bumps and need secrets
+- Do not require **Release** / **Release assets** / **Slack manifest** on every push; those need secrets or only run on `slack/` changes
 
 ## 5. Optional: local commit hook
 
@@ -111,7 +114,22 @@ If these secrets are empty, **Release assets** fails at “Configure release sig
 
 CI still rejects non-conventional subjects on `master` and on pull requests.
 
-## 6. Verify
+## 6. Slack app (manifest CI)
+
+The Slack app lives in [`slack/manifest.json`](../slack/manifest.json). PKCE is one-way (public client). Do **not** store 12-hour app configuration tokens (`xoxe.xoxp-` / `xoxe-`) in Actions secrets — refresh tokens are single-use.
+
+**Once, after `slack login` and `./scripts/slack-sync.sh`:**
+
+| GitHub | Value |
+| --- | --- |
+| Secret `SLACK_SERVICE_TOKEN` | Output of `slack auth token` (long-lived `xoxp-`) |
+| Variable `SLACK_APP_ID` | Slack app id (`A…`) |
+
+Commit the public Client ID in `slack/client-id.txt` so F-Droid/debug builds can run PKCE. Never commit a client secret.
+
+[`.github/workflows/slack-manifest.yml`](../.github/workflows/slack-manifest.yml) validates the manifest on PRs and, on `master`, runs `slack app install`. The job is skipped when the secret or variable is missing (forks stay green).
+
+## 7. Verify
 
 1. Push a `docs:` or `ci:` commit (no version bump). **CI** and **Conventional commits** should be green. **Release** should succeed with pack skipped.
 2. Confirm secrets: **Actions → Release assets → Run workflow** with tag `v1.0.0` (or the current `version.txt` with a `v` prefix). The job must pass “Configure release signing” and upload `burton-slack-<version>.apk`.
@@ -126,4 +144,4 @@ CI still rejects non-conventional subjects on `master` and on pull requests.
 | Tag exists, GitHub Release has no APK | Pack failed (secrets) or was skipped; run **Release assets** with that tag, or upload a locally signed APK |
 | *Tag does not match version.txt* | Pack checked out a tag whose `version.txt` is not that SemVer |
 | Release-please never opens a PR | Commits since the last tag are not `feat:` / `fix:` / `perf:` |
-| Fork has no release-please job | Hard-coded to `Burton-Workspaces/burton-slack` |
+| Slack manifest job skipped | Missing `SLACK_SERVICE_TOKEN` or `SLACK_APP_ID`; expected on forks |

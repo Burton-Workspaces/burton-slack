@@ -1,6 +1,6 @@
 # Burton Slack
 
-A Slack client for Android with the same look as the other Burton apps. Sign in with a workspace user token, then read channels and DMs, send messages, follow threads, and search.
+A Slack client for Android with the same look as the other Burton apps. Sign in with **Connect with Slack**, then read channels and DMs, send messages, follow threads, and search.
 
 Signed APKs are published on [GitHub Releases](https://github.com/Burton-Workspaces/burton-slack/releases). Droidify / F-Droid: [burton-sonos-fdroid](https://github.com/Burton-Workspaces/burton-sonos-fdroid) (`https://burton-workspaces.github.io/burton-sonos-fdroid/fdroid/repo`).
 
@@ -18,13 +18,13 @@ The token stays on the phone (DataStore). The app talks to Slack’s Web API ove
 
 - Android 8.0+ (API 26)
 - Internet
-- A Slack user token from an app you install on the workspace (see [Using the app](docs/using.md))
+- A Slack workspace you can authorize (see [Using the app](docs/using.md))
 
 ## Docs
 
 | Doc | Contents |
 | --- | --- |
-| [Using the app](docs/using.md) | Token setup, screens, scopes |
+| [Using the app](docs/using.md) | Connect with Slack, screens, scopes |
 | [Architecture](docs/architecture.md) | Packages, Slack Web API, caching, polling |
 | [Development](docs/development.md) | Build, run, test, project layout |
 | [Build automation](docs/build-automation.md) | GitHub Actions, workflow permissions, signing secrets |

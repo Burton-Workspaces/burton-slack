@@ -1,0 +1,63 @@
+# Slack app manifest
+#
+# What: Validates slack/manifest.json (and on master, installs/updates the app).
+# When: pull_request and push to master, only when slack/ or this workflow changes.
+# Does not: rotate 12-hour app configuration tokens. Those are single-use; store
+#           a long-lived slack auth token as SLACK_SERVICE_TOKEN instead.
+#
+# Setup (once):
+#   1. slack login && ./scripts/slack-sync.sh
+#   2. slack auth token → Actions secret SLACK_SERVICE_TOKEN
+#   3. Actions variable SLACK_APP_ID (the A… id of the Burton Slack app)
+# Missing secrets skip the job so forks still pass.
+name: Slack manifest
+
+on:
+  pull_request:
+    paths:
+      - slack/**
+      - .github/workflows/slack-manifest.yml
+  push:
+    branches: [master]
+    paths:
+      - slack/**
+      - .github/workflows/slack-manifest.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Slack manifest
+    runs-on: ubuntu-latest
+    if: ${{ vars.SLACK_APP_ID != '' && secrets.SLACK_SERVICE_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Link Slack CLI project at repo root
+        run: |
+          set -euo pipefail
+          ln -s slack/manifest.json manifest.json
+          ln -s slack/.slack .slack
+      - name: Validate manifest
+        uses: slackapi/slack-github-action/cli@v4.0.0
+        with:
+          command: manifest validate --app ${{ vars.SLACK_APP_ID }}
+          token: ${{ secrets.SLACK_SERVICE_TOKEN }}
+
+  update:
+    name: Update Slack app
+    needs: validate
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.SLACK_APP_ID != '' && secrets.SLACK_SERVICE_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Link Slack CLI project at repo root
+        run: |
+          set -euo pipefail
+          ln -s slack/manifest.json manifest.json
+          ln -s slack/.slack .slack
+      - name: Install / update from manifest
+        uses: slackapi/slack-github-action/cli@v4.0.0
+        with:
+          command: app install --app ${{ vars.SLACK_APP_ID }} --force
+          token: ${{ secrets.SLACK_SERVICE_TOKEN }}

@@ -1,34 +1,39 @@
 # Using Burton Slack
 
-Burton Slack is a workspace client. You sign in with a Slack **user token** from an app you create and install. The token is stored on the phone. Messages go through Slack’s HTTPS Web API.
+Burton Slack is a workspace client. Sign in with **Connect with Slack**. The token is stored on the phone. Messages go through Slack’s HTTPS Web API.
 
-## Token
+## Connect
 
-1. Open [api.slack.com/apps](https://api.slack.com/apps) and create an app **From scratch** in the workspace you want to read.
-2. **OAuth & Permissions** → User Token Scopes. Add:
+1. Tap **Connect with Slack** and allow the Burton Slack app in the browser.
+2. Slack returns you to the app. The user token stays on the phone (DataStore). Rotating tokens refresh automatically; refresh tokens last 30 days.
 
-   | Scope | Why |
-   | --- | --- |
-   | `channels:history`, `channels:read` | Public channels |
-   | `groups:history`, `groups:read` | Private channels |
-   | `im:history`, `im:read`, `mpim:history`, `mpim:read` | Direct messages |
-   | `chat:write` | Send messages |
-   | `users:read` | Names and avatars |
-   | `search:read` | Search tab |
-   | `team:read` | Workspace name |
-   | `reactions:read`, `reactions:write` | Emoji reactions |
-   | `stars:read` | Starred section on Home |
+The Slack app is defined in [`slack/manifest.json`](../slack/manifest.json) (user scopes only, PKCE, redirect `burtonslack://oauth`). Someone has to create it once with `slack login` and `./scripts/slack-sync.sh`, then put the public Client ID in `slack/client-id.txt`. After that, every phone uses the same app. PKCE is one-way: it marks the Slack app a public client.
 
-3. **Install to Workspace** and copy the **User OAuth Token** (`xoxp-…`).
-4. In the app, paste that token and tap **Connect**.
+Sign out from Settings. That deletes the token from the phone.
 
-Sign out from Settings. That deletes the token from the phone. A bot token (`xoxb-`) can list some channels the bot is in, but this client is built for a user token.
+### Use a token (optional)
+
+On Connect, **Use a token** pastes a classic User OAuth Token (`xoxp-…`) from an app you installed yourself. That path does not refresh. Prefer Connect with Slack when the Client ID is set. A bot token (`xoxb-`) can list some channels the bot is in, but this client is built for a user token.
+
+User scopes the Slack app requests:
+
+| Scope | Why |
+| --- | --- |
+| `channels:history`, `channels:read` | Public channels |
+| `groups:history`, `groups:read` | Private channels |
+| `im:history`, `im:read`, `mpim:history`, `mpim:read` | Direct messages |
+| `chat:write` | Send messages |
+| `users:read` | Names and avatars |
+| `search:read` | Search tab |
+| `team:read` | Workspace name |
+| `reactions:read`, `reactions:write` | Emoji reactions |
+| `stars:read` | Starred section on Home |
 
 ## Screens
 
 ### Connect
 
-Shown when no token is stored. Paste the token. Failed `auth.test` stays on this screen with an error and retry.
+Shown when no token is stored. **Connect with Slack** opens Slack’s authorize page. Failed login stays on this screen with an error and retry. **Use a token** is a debug fallback.
 
 ### Home
 
@@ -51,7 +56,7 @@ Workspace `search.messages`. Tap a hit to open that channel (and thread when the
 ## Permissions
 
 | Android | Permission | Why |
-| --- | --- | --- |
+| --- | --- |
 | All | Internet | Slack Web API |
 
 No location or nearby-devices permission. Debug builds use application id `com.burton.slack.debug` and can sit next to a signed install.

@@ -6,7 +6,7 @@ The app is a single Gradle module (`:app`), Kotlin, Jetpack Compose, Hilt, OkHtt
 ui/          Compose screens and ViewModels (Hilt)
 domain/      Conversation, SlackMessage, Workspace, Mrkdwn
 data/
-  slack      SlackApi (HTTPS Web API)
+  slack      SlackApi, PKCE, rotating user tokens
   parse      TinyJson + SlackCodec
   repository SlackRepository, LocalPrefs (DataStore)
 di/          OkHttp, Coil ImageLoader
@@ -14,7 +14,9 @@ di/          OkHttp, Coil ImageLoader
 
 ## Auth
 
-A user OAuth token is stored in DataStore (`burton_slack`). `auth.test` plus `team.info` fill the workspace snapshot. Screens never see the token string after sign-in; the repository holds it in memory and DataStore.
+Connect with Slack runs OAuth 2.0 with PKCE (`burtonslack://oauth`). There is no client secret in the APK. `oauth.v2.access` returns a user access token plus a refresh token; Custom URI installs always rotate. Tokens live in DataStore (`burton_slack`): `user_token`, `refresh_token`, `token_expires_at`. The repository refreshes about five minutes before expiry (`oauth.v2.access` with `grant_type=refresh_token` and `client_id` only). A failed refresh signs out. Paste-token sign-in still stores a classic `xoxp-` with no refresh.
+
+`auth.test` plus `team.info` fill the workspace snapshot. Screens never see the token string after sign-in; the repository holds it in memory and DataStore.
 
 ## API
 
@@ -22,6 +24,7 @@ A user OAuth token is stored in DataStore (`burton_slack`). `auth.test` plus `te
 
 | Method | Use |
 | --- | --- |
+| `oauth.v2.access` | PKCE code exchange and token refresh (no Bearer, no client secret) |
 | `auth.test` / `team.info` | Workspace + signed-in user |
 | `users.list` | Name and avatar cache |
 | `conversations.list` | Home rows (channels, IMs, MPIMs) |

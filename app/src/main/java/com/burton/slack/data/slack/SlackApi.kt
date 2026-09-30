@@ -23,27 +23,15 @@ class SlackApi @Inject constructor(
         token: String,
         method: String,
         params: Map<String, String> = emptyMap(),
-    ): Map<String, Any?> = withContext(Dispatchers.IO) {
-        val body = FormBody.Builder().apply {
-            params.forEach { (key, value) -> if (value.isNotBlank()) add(key, value) }
-        }.build()
-        val request = Request.Builder()
-            .url("$HOST/$method")
-            .header("Authorization", "Bearer $token")
-            .post(body)
-            .build()
-        client.newCall(request).execute().use { response ->
-            val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful && text.isBlank()) {
-                throw SlackApiException(method, "http_${response.code}")
-            }
-            val parsed = TinyJson.parseObject(text)
-            if (!parsed.bool("ok")) {
-                throw SlackApiException(method, parsed.str("error").ifBlank { "unknown_error" })
-            }
-            parsed
-        }
-    }
+    ): Map<String, Any?> = post(method, params, token)
+
+    suspend fun callAnonymous(
+        method: String,
+        params: Map<String, String>,
+    ): Map<String, Any?> = post(method, params, token = null)
+
+    suspend fun exchangeOauth(params: Map<String, String>): SlackAuth =
+        SlackAuth.fromOauth(callAnonymous("oauth.v2.access", params))
 
     suspend fun paged(
         token: String,
@@ -65,6 +53,33 @@ class SlackApi @Inject constructor(
             if (cursor.isBlank()) return out
         }
         return out
+    }
+
+    private suspend fun post(
+        method: String,
+        params: Map<String, String>,
+        token: String?,
+    ): Map<String, Any?> = withContext(Dispatchers.IO) {
+        val body = FormBody.Builder().apply {
+            params.forEach { (key, value) -> add(key, value) }
+        }.build()
+        val builder = Request.Builder()
+            .url("$HOST/$method")
+            .post(body)
+        if (!token.isNullOrBlank()) {
+            builder.header("Authorization", "Bearer $token")
+        }
+        client.newCall(builder.build()).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful && text.isBlank()) {
+                throw SlackApiException(method, "http_${response.code}")
+            }
+            val parsed = TinyJson.parseObject(text)
+            if (!parsed.bool("ok")) {
+                throw SlackApiException(method, parsed.str("error").ifBlank { "unknown_error" })
+            }
+            parsed
+        }
     }
 
     companion object {

@@ -1,0 +1,37 @@
+{
+  "display_information": {
+    "name": "Burton Slack",
+    "description": "Household Slack client for Burton Workspaces.",
+    "background_color": "#000000"
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "burtonslack://oauth"
+    ],
+    "scopes": {
+      "user": [
+        "channels:history",
+        "channels:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "mpim:history",
+        "mpim:read",
+        "chat:write",
+        "users:read",
+        "search:read",
+        "team:read",
+        "reactions:read",
+        "reactions:write",
+        "stars:read"
+      ]
+    },
+    "pkce_enabled": true
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": true
+  }
+}

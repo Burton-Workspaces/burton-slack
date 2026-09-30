@@ -1,0 +1,2 @@
+# Public Slack app Client ID (not a secret). PKCE public clients expose this in the APK.
+7371162846503.12200883281716

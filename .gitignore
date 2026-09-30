@@ -20,3 +20,6 @@ keystore.properties
 *.keystore
 !debug.keystore
 fdroid-pages.env
+.slack-config-tokens
+slack/.slack/apps.json
+slack/.slack/apps.dev.json

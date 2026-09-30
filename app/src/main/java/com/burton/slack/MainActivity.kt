@@ -1,9 +1,15 @@
 package com.burton.slack
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
+import com.burton.slack.data.repository.SlackRepository
+import com.burton.slack.data.slack.Pkce
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -45,8 +51,11 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var repository: SlackRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleOauthIntent(intent)
         enableEdgeToEdge()
         setContent {
             BurtonSlackTheme {
@@ -57,6 +66,32 @@ class MainActivity : ComponentActivity() {
                 } else {
                     SignInScreen()
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOauthIntent(intent)
+    }
+
+    private fun handleOauthIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme != Pkce.REDIRECT_SCHEME || uri.host != Pkce.REDIRECT_HOST) return
+        val error = uri.getQueryParameter("error")
+        val description = uri.getQueryParameter("error_description").orEmpty()
+        val code = uri.getQueryParameter("code").orEmpty()
+        val state = uri.getQueryParameter("state").orEmpty()
+        lifecycleScope.launch {
+            if (!error.isNullOrBlank()) {
+                repository.failOauth(
+                    description.ifBlank {
+                        if (error == "access_denied") "Slack login was cancelled." else error
+                    },
+                )
+            } else {
+                runCatching { repository.completeOAuth(code, state) }
             }
         }
     }

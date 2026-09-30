@@ -27,6 +27,18 @@ fun semverToVersionCode(version: String): Int {
     return major * 1_000_000 + minor * 1_000 + patch
 }
 
+fun slackClientId(): String {
+    val file = rootProject.file("slack/client-id.txt")
+    if (!file.exists()) return ""
+    return file.readLines()
+        .map { it.trim() }
+        .firstOrNull { it.isNotEmpty() && !it.startsWith("#") }
+        .orEmpty()
+}
+
+fun javaStringLiteral(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "com.burton.slack"
     compileSdk = 35
@@ -38,6 +50,8 @@ android {
         versionCode = semverToVersionCode(appVersion)
         versionName = appVersion
         vectorDrawables.useSupportLibrary = true
+        buildConfigField("String", "SLACK_CLIENT_ID", javaStringLiteral(slackClientId()))
+        buildConfigField("String", "SLACK_REDIRECT_URI", javaStringLiteral("burtonslack://oauth"))
     }
 
     signingConfigs {
@@ -115,6 +129,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.browser)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

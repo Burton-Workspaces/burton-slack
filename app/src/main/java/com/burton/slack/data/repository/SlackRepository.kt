@@ -1,11 +1,13 @@
 package com.burton.slack.data.repository
 
+import com.burton.slack.BuildConfig
 import com.burton.slack.data.parse.SlackCodec
-import com.burton.slack.data.parse.TinyJson.obj
 import com.burton.slack.data.parse.TinyJson.objList
 import com.burton.slack.data.parse.TinyJson.str
+import com.burton.slack.data.slack.Pkce
 import com.burton.slack.data.slack.SlackApi
 import com.burton.slack.data.slack.SlackApiException
+import com.burton.slack.data.slack.SlackAuth
 import com.burton.slack.data.slack.TokenHolder
 import com.burton.slack.domain.ChannelHistory
 import com.burton.slack.domain.SearchHit
@@ -38,6 +40,7 @@ class SlackRepository @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val hydrateLock = Mutex()
+    private val refreshLock = Mutex()
 
     private val _state = MutableStateFlow(SlackSnapshot())
     val state: StateFlow<SlackSnapshot> = _state.asStateFlow()
@@ -58,9 +61,9 @@ class SlackRepository @Inject constructor(
         if (started) return
         started = true
         scope.launch {
-            prefs.token.distinctUntilChanged().collect { token ->
-                tokens.token = token
-                if (token.isBlank()) {
+            prefs.auth.distinctUntilChanged().collect { auth ->
+                tokens.apply(auth)
+                if (!auth.isPresent) {
                     pollJob?.cancel()
                     channelPoll?.cancel()
                     _state.value = SlackSnapshot()
@@ -76,16 +79,58 @@ class SlackRepository @Inject constructor(
         }
     }
 
+    suspend fun beginOAuth(): String {
+        val clientId = BuildConfig.SLACK_CLIENT_ID
+        if (clientId.isBlank()) {
+            throw SlackApiException("oauth.v2.authorize", "missing_client_id")
+        }
+        val challenge = Pkce.generate()
+        prefs.setPendingOauth(challenge.verifier, challenge.state)
+        return Pkce.authorizeUrl(clientId, challenge)
+    }
+
+    suspend fun completeOAuth(code: String, state: String) {
+        _state.update { it.copy(scanning = true, error = null) }
+        try {
+            val pending = prefs.pendingOauth.first()
+                ?: throw SlackApiException("oauth.v2.access", "oauth_missing_verifier")
+            if (pending.state != state) {
+                throw SlackApiException("oauth.v2.access", "oauth_state_mismatch")
+            }
+            if (code.isBlank()) {
+                throw SlackApiException("oauth.v2.access", "oauth_missing_code")
+            }
+            val auth = api.exchangeOauth(
+                mapOf(
+                    "client_id" to BuildConfig.SLACK_CLIENT_ID,
+                    "code" to code,
+                    "redirect_uri" to Pkce.REDIRECT_URI,
+                    "code_verifier" to pending.verifier,
+                ),
+            )
+            tokens.apply(auth)
+            hydrate(token = auth.accessToken, forceUsers = true)
+            persistAuth(auth)
+        } catch (error: Exception) {
+            fail(error)
+            throw error
+        }
+    }
+
+    fun failOauth(message: String) {
+        _state.update { it.copy(scanning = false, error = message) }
+    }
+
     suspend fun signIn(token: String) {
         val trimmed = token.trim()
         require(trimmed.isNotBlank()) { "Token is blank" }
-        tokens.token = trimmed
+        tokens.apply(SlackAuth(accessToken = trimmed))
         _state.update { it.copy(tokenPresent = true, scanning = true, error = null) }
         try {
             hydrate(token = trimmed, forceUsers = true)
-            prefs.setToken(trimmed)
+            persistAuth(SlackAuth(accessToken = trimmed))
         } catch (error: Exception) {
-            tokens.token = prefs.token.first()
+            tokens.apply(prefs.auth.first())
             fail(error)
             throw error
         }
@@ -94,7 +139,7 @@ class SlackRepository @Inject constructor(
     suspend fun signOut() {
         pollJob?.cancel()
         channelPoll?.cancel()
-        tokens.token = ""
+        tokens.clear()
         prefs.clearToken()
         _state.value = SlackSnapshot()
         _histories.value = emptyMap()
@@ -149,27 +194,24 @@ class SlackRepository @Inject constructor(
     }
 
     suspend fun send(channelId: String, text: String, threadTs: String? = null) {
-        val token = requireToken()
         val params = mutableMapOf(
             "channel" to channelId,
             "text" to text,
         )
         if (!threadTs.isNullOrBlank()) params["thread_ts"] = threadTs
-        api.call(token, "chat.postMessage", params)
+        slackCall("chat.postMessage", params)
         loadHistory(channelId, older = false)
         if (!threadTs.isNullOrBlank()) loadThread(channelId, threadTs)
     }
 
     suspend fun toggleReaction(channelId: String, ts: String, emoji: String) {
-        val token = requireToken()
         val me = _state.value.workspace?.userId.orEmpty()
         val message = _histories.value[channelId]?.messages?.firstOrNull { it.ts == ts }
             ?: _threads.value.values.flatMap { it.messages }.firstOrNull { it.ts == ts }
         val mine = message?.reactions?.any { it.name == emoji && it.mine(me) } == true
         val method = if (mine) "reactions.remove" else "reactions.add"
         runCatching {
-            api.call(
-                token,
+            slackCall(
                 method,
                 mapOf("channel" to channelId, "timestamp" to ts, "name" to emoji),
             )
@@ -179,10 +221,8 @@ class SlackRepository @Inject constructor(
     }
 
     suspend fun search(query: String): List<SearchHit> {
-        val token = requireToken()
         if (query.isBlank()) return emptyList()
-        val body = api.call(
-            token,
+        val body = slackCall(
             "search.messages",
             mapOf("query" to query, "count" to "40", "sort" to "timestamp"),
         )
@@ -199,15 +239,16 @@ class SlackRepository @Inject constructor(
         }
     }
 
-    private suspend fun hydrate(token: String = requireToken(), forceUsers: Boolean = false) {
+    private suspend fun hydrate(token: String = "", forceUsers: Boolean = false) {
+        val authToken = token.ifBlank { requireToken() }
         hydrateLock.withLock {
             _state.update { it.copy(scanning = it.workspace == null, tokenPresent = true) }
-            val auth = api.call(token, "auth.test")
-            val users = loadUsers(token, forceUsers)
-            val team = runCatching { api.call(token, "team.info") }.getOrDefault(emptyMap())
+            val auth = api.call(authToken, "auth.test")
+            val users = loadUsers(authToken, forceUsers)
+            val team = runCatching { api.call(authToken, "team.info") }.getOrDefault(emptyMap())
             val me = users[auth.str("user_id")]
             val workspace = SlackCodec.workspace(auth, team, me)
-            val conversations = loadConversations(token, users)
+            val conversations = loadConversations(authToken, users)
             _state.value = SlackSnapshot(
                 tokenPresent = true,
                 workspace = workspace,
@@ -255,7 +296,6 @@ class SlackRepository @Inject constructor(
         )
 
     private suspend fun loadHistory(channelId: String, older: Boolean) {
-        val token = requireToken()
         val current = _histories.value[channelId] ?: ChannelHistory(
             channelId = channelId,
             messages = emptyList(),
@@ -272,7 +312,7 @@ class SlackRepository @Inject constructor(
             "inclusive" to "true",
         )
         if (older && current.oldest.isNotBlank()) params["latest"] = current.oldest
-        val body = api.call(token, "conversations.history", params)
+        val body = slackCall("conversations.history", params)
         val incoming = body.objList("messages").mapNotNull(SlackCodec::message)
             .sortedBy { it.ts }
         val merged = if (older) {
@@ -294,15 +334,13 @@ class SlackRepository @Inject constructor(
     }
 
     private suspend fun loadThread(channelId: String, threadTs: String) {
-        val token = requireToken()
         val key = threadKey(channelId, threadTs)
         putThread(
             channelId,
             threadTs,
             currentThread(channelId, threadTs).copy(loading = true, error = null),
         )
-        val body = api.call(
-            token,
+        val body = slackCall(
             "conversations.replies",
             mapOf("channel" to channelId, "ts" to threadTs, "limit" to "80"),
         )
@@ -322,11 +360,67 @@ class SlackRepository @Inject constructor(
     }
 
     private suspend fun markRead(channelId: String) {
-        val token = requireToken()
         val ts = _histories.value[channelId]?.messages?.lastOrNull()?.ts ?: return
         runCatching {
-            api.call(token, "conversations.mark", mapOf("channel" to channelId, "ts" to ts))
+            slackCall("conversations.mark", mapOf("channel" to channelId, "ts" to ts))
         }
+    }
+
+    private suspend fun slackCall(
+        method: String,
+        params: Map<String, String> = emptyMap(),
+    ): Map<String, Any?> = withFreshToken { token -> api.call(token, method, params) }
+
+    private suspend fun <T> withFreshToken(block: suspend (String) -> T): T {
+        val token = requireToken()
+        return try {
+            block(token)
+        } catch (error: SlackApiException) {
+            if (error.code == "token_expired" && tokens.refreshToken.isNotBlank()) {
+                refreshLock.withLock { refreshNowLocked(force = true) }
+                block(requireToken())
+            } else {
+                throw error
+            }
+        }
+    }
+
+    private suspend fun requireToken(): String {
+        ensureFreshToken()
+        val token = tokens.token
+        check(token.isNotBlank()) { "not_authed" }
+        return token
+    }
+
+    private suspend fun ensureFreshToken() {
+        refreshLock.withLock { refreshNowLocked(force = false) }
+    }
+
+    private suspend fun refreshNowLocked(force: Boolean) {
+        val current = tokens.snapshot()
+        if (current.refreshToken.isBlank()) return
+        if (!force && !current.needsRefresh(System.currentTimeMillis())) return
+        try {
+            val next = api.exchangeOauth(
+                mapOf(
+                    "client_id" to BuildConfig.SLACK_CLIENT_ID,
+                    "grant_type" to "refresh_token",
+                    "refresh_token" to current.refreshToken,
+                ),
+            )
+            tokens.apply(next)
+            persistAuth(next)
+        } catch (error: SlackApiException) {
+            if (error.code in REFRESH_FATAL) {
+                signOut()
+            }
+            throw error
+        }
+    }
+
+    private suspend fun persistAuth(auth: SlackAuth) {
+        tokens.apply(auth)
+        prefs.setAuth(auth)
     }
 
     private fun mergeNewer(existing: List<SlackMessage>, incoming: List<SlackMessage>): List<SlackMessage> {
@@ -368,17 +462,19 @@ class SlackRepository @Inject constructor(
         }
     }
 
-    private fun requireToken(): String {
-        val token = tokens.token.ifBlank { _state.value.let { if (it.tokenPresent) tokens.token else "" } }
-        check(token.isNotBlank()) { "not_authed" }
-        return token
-    }
-
     private fun friendly(error: Throwable): String {
         val code = (error as? SlackApiException)?.code ?: error.message.orEmpty()
         return when (code) {
-            "invalid_auth", "not_authed", "token_revoked", "token_expired" ->
-                "That token was rejected. Create a user token and try again."
+            "invalid_auth", "not_authed", "token_revoked", "token_expired",
+            "invalid_refresh_token",
+            ->
+                "Session expired. Connect with Slack again."
+            "missing_client_id" ->
+                "This build has no Slack Client ID. Fill slack/client-id.txt after installing the Slack app."
+            "oauth_state_mismatch", "oauth_missing_verifier" ->
+                "That Slack login expired. Tap Connect with Slack again."
+            "oauth_missing_code", "access_denied" ->
+                "Slack login was cancelled."
             "missing_scope" -> "The token is missing a required Slack scope."
             "ratelimited" -> "Slack rate-limited this phone. Wait a moment and retry."
             "channel_not_found" -> "That conversation is gone or hidden from this token."
@@ -390,6 +486,12 @@ class SlackRepository @Inject constructor(
         private const val LIST_POLL_MS = 4_000L
         private const val CHANNEL_POLL_MS = 3_000L
         private const val USERS_TTL_MS = 10 * 60 * 1000L
+        private val REFRESH_FATAL = setOf(
+            "invalid_refresh_token",
+            "invalid_auth",
+            "token_revoked",
+            "not_authed",
+        )
 
         fun threadKey(channelId: String, threadTs: String) = "$channelId|$threadTs"
     }
