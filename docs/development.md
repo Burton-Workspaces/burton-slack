@@ -39,6 +39,12 @@ app/src/test/java/…            TinyJson, SlackCodec, Mrkdwn
 
 Parser tests cover Slack JSON and mrkdwn. Run those before changing `SlackCodec`.
 
+Launcher PNGs (mipmaps + F-Droid `fdroid/metadata/com.burton.slack/en-US/icon.png`) come from `brand/ic_launcher.svg`:
+
+```bash
+python3 scripts/render-icons.py
+```
+
 ## Network while debugging
 
 HTTPS only. File previews on `files.slack.com` send the stored token via Coil’s OkHttp interceptor.

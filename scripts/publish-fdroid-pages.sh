@@ -117,6 +117,15 @@ meta_dst="$FDROID_ROOT/metadata/com.burton.slack.yml"
 if [[ -f "$meta_src" && ! -f "$meta_dst" ]]; then
   cp "$meta_src" "$meta_dst"
 fi
+graphics_src="$ROOT/fdroid/metadata/com.burton.slack"
+if [[ -d "$graphics_src" ]]; then
+  mkdir -p "$FDROID_ROOT/metadata/com.burton.slack"
+  if command -v rsync >/dev/null; then
+    rsync -a "$graphics_src/" "$FDROID_ROOT/metadata/com.burton.slack/"
+  else
+    cp -a "$graphics_src/." "$FDROID_ROOT/metadata/com.burton.slack/"
+  fi
+fi
 
 (
   cd "$FDROID_ROOT"

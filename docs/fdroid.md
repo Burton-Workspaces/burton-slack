@@ -36,7 +36,7 @@ chmod 0600 config.yml
 
 Do **not** use Debian’s `apt install fdroidserver` (2.2.1). That stack’s Androguard cannot scan APKs from Android Gradle Plugin 8.7 (`res1 must be zero!` / `resources.arsc`). `./scripts/publish-fdroid-pages.sh` prepends `~/.local/bin` and refuses `/usr/bin/fdroid` for that reason.
 
-If `config.yml` sets `repo_icon` to `repo/icons/icon.png`, change it to a PNG that lives in `~/fdroid` (for example `fdroid-icon.png`). That warning is unrelated to the Androguard crash.
+If `config.yml` sets `repo_icon` to `repo/icons/icon.png`, change it to a PNG that lives in `~/fdroid` (for example `fdroid-icon.png`). `fdroid update` looks for that file in `FDROID_ROOT`, not inside `repo/` yet, so a missing file produces a placeholder icon and a warning. This repo’s publish path expects `repo_icon: fdroid-icon.png`.
 
 That writes `config.yml` and a new repo keystore. Edit `config.yml` for `repo_name`, `repo_url`, and `repo_description`. Set `repo_url` to:
 
