@@ -65,7 +65,16 @@ data class SlackFile(
     val mimetype: String,
     val url: String,
     val thumbUrl: String,
-)
+) {
+    val previewUrl: String get() = thumbUrl.ifBlank { url }
+    val isImage: Boolean
+        get() = mimetype.startsWith("image/") ||
+            name.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
+
+    companion object {
+        private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp", "heic", "bmp")
+    }
+}
 
 data class SlackReaction(
     val name: String,

@@ -26,6 +26,7 @@ object Pkce {
         "reactions:read",
         "reactions:write",
         "stars:read",
+        "files:read",
     )
 
     data class Challenge(

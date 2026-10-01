@@ -46,7 +46,7 @@ object NetworkModule {
         val token = tokenHolder.token
         val needsAuth = !skip &&
             token.isNotBlank() &&
-            (host == "files.slack.com" || host.endsWith(".slack.com")) &&
+            hostNeedsSlackAuth(host) &&
             request.header("Authorization").isNullOrBlank()
         val next = if (needsAuth) {
             request.newBuilder().header("Authorization", "Bearer $token").build()
@@ -55,4 +55,10 @@ object NetworkModule {
         }
         chain.proceed(next)
     }
+
+    private fun hostNeedsSlackAuth(host: String): Boolean =
+        host == "files.slack.com" ||
+            host == "slack-files.com" ||
+            host.endsWith(".slack.com") ||
+            host.endsWith(".slack-files.com")
 }

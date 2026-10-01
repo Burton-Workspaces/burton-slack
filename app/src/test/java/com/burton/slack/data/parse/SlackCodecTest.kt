@@ -55,6 +55,81 @@ class SlackCodecTest {
         assertTrue(message.reactions[0].mine("U1"))
         assertFalse(message.reactions[0].mine("U9"))
         assertEquals("Shot", message.files.single().title)
+        assertTrue(message.files.single().isImage)
+        assertEquals("https://files.slack.com/a", message.files.single().previewUrl)
+    }
+
+    @Test
+    fun prefersLargerFileThumbs() {
+        val message = SlackCodec.message(
+            TinyJson.parseObject(
+                """{"ts":"1.0","text":"pic","files":[{"id":"F1","name":"a.jpg","mimetype":"image/jpeg","url_private":"https://files.slack.com/full","thumb_64":"https://files.slack.com/64","thumb_360":"https://files.slack.com/360"}]}""",
+            ),
+        )!!
+        assertEquals("https://files.slack.com/360", message.files.single().previewUrl)
+    }
+
+    @Test
+    fun readsBlockKitBackblastDetailsAndImages() {
+        val message = SlackCodec.message(
+            TinyJson.parseObject(
+                """
+                {
+                  "ts":"20.1",
+                  "user":"U1",
+                  "username":"Slackblast",
+                  "text":"Backblast posted",
+                  "blocks":[
+                    {"type":"header","text":{"type":"plain_text","text":"Backblast: The Dark Side"}},
+                    {"type":"section","fields":[
+                      {"type":"mrkdwn","text":"*When:*\n2024-01-15"},
+                      {"type":"mrkdwn","text":"*Q:*\n<@U1>"}
+                    ]},
+                    {"type":"section","text":{"type":"mrkdwn","text":"PAX grinded the coupons."}},
+                    {"type":"image","image_url":"https://i.imgur.com/pax.jpg","alt_text":"PAX"}
+                  ]
+                }
+                """.trimIndent(),
+            ),
+        )!!
+        assertTrue(message.text.contains("Backblast: The Dark Side"))
+        assertTrue(message.text.contains("When:"))
+        assertTrue(message.text.contains("<@U1>"))
+        assertTrue(message.text.contains("PAX grinded the coupons."))
+        assertFalse(message.text.contains("Backblast posted"))
+        assertEquals("https://i.imgur.com/pax.jpg", message.files.single().previewUrl)
+        assertTrue(message.files.single().isImage)
+    }
+
+    @Test
+    fun readsAttachmentUnfurlsAndPostPreview() {
+        val message = SlackCodec.message(
+            TinyJson.parseObject(
+                """
+                {
+                  "ts":"21.0",
+                  "text":"check this",
+                  "attachments":[{"title":"Strava","text":"5.2 miles","image_url":"https://slack-imgs.com/run.png"}],
+                  "files":[{"id":"F9","name":"notes","filetype":"post","title":"Preblast","preview":"Meet at the flag at 0530"}]
+                }
+                """.trimIndent(),
+            ),
+        )!!
+        assertTrue(message.text.contains("Strava"))
+        assertTrue(message.text.contains("5.2 miles"))
+        assertTrue(message.text.contains("Meet at the flag at 0530"))
+        assertEquals("https://slack-imgs.com/run.png", message.files.single { it.isImage }.previewUrl)
+    }
+
+    @Test
+    fun conversationLatestUsesBlockText() {
+        val channel = SlackCodec.conversation(
+            TinyJson.parseObject(
+                """{"id":"C9","name":"backblasts","is_channel":true,"is_member":true,"latest":{"ts":"3.0","text":"posted","blocks":[{"type":"header","text":{"type":"plain_text","text":"Backblast: Asylum"}}]}}""",
+            ),
+            emptyMap(),
+        )!!
+        assertEquals("Backblast: Asylum", channel.latestText)
     }
 
     @Test

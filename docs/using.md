@@ -28,6 +28,7 @@ User scopes the Slack app requests:
 | `team:read` | Workspace name |
 | `reactions:read`, `reactions:write` | Emoji reactions |
 | `stars:read` | Starred section on Home |
+| `files:read` | Slack-hosted photos and file previews |
 
 ## Screens
 

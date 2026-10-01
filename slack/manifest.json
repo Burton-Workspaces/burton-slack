@@ -24,7 +24,8 @@
         "team:read",
         "reactions:read",
         "reactions:write",
-        "stars:read"
+        "stars:read",
+        "files:read"
       ]
     },
     "pkce_enabled": true

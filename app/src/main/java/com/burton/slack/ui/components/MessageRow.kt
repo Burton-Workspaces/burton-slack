@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,8 +19,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.burton.slack.domain.Mrkdwn
 import com.burton.slack.domain.SlackMessage
 import com.burton.slack.domain.SlackSnapshot
@@ -27,7 +31,6 @@ import com.burton.slack.ui.theme.BurtonCharcoal
 import com.burton.slack.ui.theme.BurtonIvory
 import com.burton.slack.ui.theme.BurtonMute
 import com.burton.slack.ui.theme.BurtonSand
-import com.burton.slack.ui.theme.BurtonSandDim
 import com.burton.slack.ui.theme.BurtonVoid
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -89,15 +92,28 @@ fun MessageRow(
             }
             message.files.forEach { file ->
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    file.title.ifBlank { file.name },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BurtonSand,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(BurtonCharcoal, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                )
+                if (file.isImage && file.previewUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = file.previewUrl,
+                        contentDescription = file.title.ifBlank { file.name },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 120.dp, max = 280.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BurtonCharcoal),
+                        contentScale = ContentScale.Crop,
+                    )
+                } else {
+                    Text(
+                        file.title.ifBlank { file.name },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = BurtonSand,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(BurtonCharcoal, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                    )
+                }
             }
             if (message.reactions.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
