@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Automatic releases are produced by [release-please](https://github.com/googleapis/release-please)
 from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [1.3.0](https://github.com/Burton-Workspaces/burton-slack/compare/v1.2.0...v1.3.0) (2026-10-01)
+
+
+### Features
+
+* show Block Kit post details and image previews ([f1f668b](https://github.com/Burton-Workspaces/burton-slack/commit/f1f668bf91b4bd78bdbb47e1f3c53f494ba99d61))
+
 ## [1.2.0](https://github.com/Burton-Workspaces/burton-slack/compare/v1.1.0...v1.2.0) (2026-09-30)
 
 
