@@ -2,6 +2,7 @@ package com.burton.slack.data.repository
 
 import com.burton.slack.BuildConfig
 import com.burton.slack.data.parse.SlackCodec
+import com.burton.slack.data.parse.TinyJson.obj
 import com.burton.slack.data.parse.TinyJson.objList
 import com.burton.slack.data.parse.TinyJson.str
 import com.burton.slack.data.slack.Pkce
@@ -10,6 +11,7 @@ import com.burton.slack.data.slack.SlackApiException
 import com.burton.slack.data.slack.SlackAuth
 import com.burton.slack.data.slack.TokenHolder
 import com.burton.slack.domain.ChannelHistory
+import com.burton.slack.domain.ConversationKind
 import com.burton.slack.domain.SearchHit
 import com.burton.slack.domain.SlackMessage
 import com.burton.slack.domain.SlackSnapshot
@@ -227,6 +229,34 @@ class SlackRepository @Inject constructor(
             mapOf("query" to query, "count" to "40", "sort" to "timestamp"),
         )
         return SlackCodec.searchHits(body)
+    }
+
+    suspend fun openDirectMessage(userId: String): String {
+        require(userId.isNotBlank()) { "userId is blank" }
+        val existing = _state.value.conversations.firstOrNull {
+            it.kind == ConversationKind.IM && it.userId == userId
+        }
+        if (existing != null) return existing.id
+        val body = try {
+            slackCall(
+                "conversations.open",
+                mapOf("users" to userId, "return_im" to "true"),
+            )
+        } catch (error: SlackApiException) {
+            throw Exception(friendly(error))
+        }
+        val rawChannel = body.obj("channel")
+        val channelId = rawChannel.str("id")
+        check(channelId.isNotBlank()) { "conversations.open returned no channel" }
+        val parsed = SlackCodec.conversation(rawChannel, _state.value.users)
+        if (parsed != null) {
+            _state.update { snap ->
+                if (snap.conversations.any { it.id == parsed.id }) snap
+                else snap.copy(conversations = snap.conversations + parsed)
+            }
+        }
+        scope.launch { runCatching { hydrate(forceUsers = false) } }
+        return channelId
     }
 
     private fun startPolling() {
@@ -476,6 +506,8 @@ class SlackRepository @Inject constructor(
             "oauth_missing_code", "access_denied" ->
                 "Slack login was cancelled."
             "missing_scope" -> "The token is missing a required Slack scope."
+            "cannot_dm_bot", "cannot_dm" -> "That account cannot take direct messages."
+            "user_not_found" -> "That person is not in this workspace."
             "ratelimited" -> "Slack rate-limited this phone. Wait a moment and retry."
             "channel_not_found" -> "That conversation is gone or hidden from this token."
             else -> error.message ?: "Slack request failed."

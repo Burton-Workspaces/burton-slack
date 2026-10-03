@@ -27,6 +27,23 @@ data class SlackUser(
 ) {
     val label: String
         get() = displayName.ifBlank { realName.ifBlank { name.ifBlank { id } } }
+
+    fun matchRank(query: String): Int {
+        val needle = query.trim()
+        if (needle.isBlank()) return Int.MAX_VALUE
+        return minOf(fieldRank(displayName, needle), fieldRank(realName, needle), fieldRank(name, needle))
+    }
+
+    private fun fieldRank(value: String, query: String): Int {
+        val haystack = value.trim()
+        if (haystack.isBlank()) return Int.MAX_VALUE
+        return when {
+            haystack.equals(query, ignoreCase = true) -> 0
+            haystack.startsWith(query, ignoreCase = true) -> 1
+            haystack.contains(query, ignoreCase = true) -> 2
+            else -> Int.MAX_VALUE
+        }
+    }
 }
 
 data class Conversation(
@@ -134,4 +151,18 @@ data class SlackSnapshot(
 
     fun userLabel(userId: String): String =
         users[userId]?.label ?: userId.ifBlank { "Unknown" }
+
+    fun matchingUsers(query: String, limit: Int = 8): List<SlackUser> {
+        val needle = query.trim()
+        if (needle.isBlank()) return emptyList()
+        return users.values
+            .asSequence()
+            .filter { !it.deleted && !it.isBot }
+            .map { it to it.matchRank(needle) }
+            .filter { it.second != Int.MAX_VALUE }
+            .sortedWith(compareBy({ it.second }, { it.first.label.lowercase() }))
+            .take(limit)
+            .map { it.first }
+            .toList()
+    }
 }

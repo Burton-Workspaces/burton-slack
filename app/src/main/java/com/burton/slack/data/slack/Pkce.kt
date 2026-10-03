@@ -17,6 +17,7 @@ object Pkce {
         "groups:read",
         "im:history",
         "im:read",
+        "im:write",
         "mpim:history",
         "mpim:read",
         "chat:write",

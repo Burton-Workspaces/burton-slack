@@ -9,7 +9,7 @@ Signed APKs are published on [GitHub Releases](https://github.com/Burton-Workspa
 - **Home** — starred, channels, and direct messages with unread counts
 - **Channel** — history, send, reactions, jump into a thread
 - **Threads** — replies on one message
-- **Search** — workspace message search
+- **Search** — people and workspace message search
 - **Settings** — workspace, sign out, app version
 
 The token stays on the phone (DataStore). The app talks to Slack’s Web API over HTTPS; there is no Burton cloud account.

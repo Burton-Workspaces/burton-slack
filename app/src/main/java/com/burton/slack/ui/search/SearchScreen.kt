@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +41,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.burton.slack.domain.Mrkdwn
 import com.burton.slack.domain.SearchHit
+import com.burton.slack.domain.SlackSnapshot
+import com.burton.slack.domain.SlackUser
+import com.burton.slack.ui.components.UserAvatar
 import com.burton.slack.ui.theme.BurtonCharcoal
 import com.burton.slack.ui.theme.BurtonIvory
 import com.burton.slack.ui.theme.BurtonLine
@@ -52,19 +58,19 @@ fun SearchScreen(
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val snapshot by viewModel.snapshot.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    LaunchedEffect(ui.pendingChannelId) {
+        val channelId = ui.pendingChannelId ?: return@LaunchedEffect
+        onOpenHit(channelId, null)
+        viewModel.consumePendingChannel()
+    }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("Search", style = MaterialTheme.typography.headlineLarge, color = BurtonIvory)
-        Text(
-            "Messages in this workspace",
-            style = MaterialTheme.typography.bodyMedium,
-            color = BurtonMute,
-        )
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = ui.query,
             onValueChange = viewModel::onQueryChange,
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Search messages") },
+            placeholder = { Text("Search people and messages") },
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             trailingIcon = {
                 if (ui.query.isNotEmpty()) {
@@ -93,15 +99,19 @@ fun SearchScreen(
         )
         Spacer(Modifier.height(16.dp))
         when {
-            ui.loading -> Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = BurtonSand)
-            }
-            ui.error != null -> Text(ui.error ?: "", color = BurtonIvory)
             ui.query.isBlank() -> Text(
                 "Type a word, a person’s name, or a phrase.",
                 color = BurtonMute,
             )
-            ui.searched && ui.hits.isEmpty() -> Text(
+            ui.users.isEmpty() && ui.hits.isEmpty() && ui.error == null &&
+                (ui.loading || !ui.searched) -> Box(
+                Modifier.fillMaxWidth().padding(top = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = BurtonSand)
+            }
+            ui.error != null && ui.users.isEmpty() && ui.hits.isEmpty() -> Text(ui.error ?: "", color = BurtonIvory)
+            ui.searched && ui.users.isEmpty() && ui.hits.isEmpty() -> Text(
                 "No matches in this workspace.",
                 color = BurtonMute,
             )
@@ -109,15 +119,47 @@ fun SearchScreen(
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                items(ui.hits, key = { "${it.channelId}-${it.message.ts}" }) { hit ->
-                    SearchHitRow(
-                        hit = hit,
-                        preview = Mrkdwn.display(hit.message.text, snapshot.users, snapshot.conversations),
-                        onClick = {
-                            val thread = hit.message.threadTs.takeIf { ts -> ts.isNotBlank() && ts != hit.message.ts }
-                            onOpenHit(hit.channelId, thread)
-                        },
-                    )
+                if (ui.users.isNotEmpty()) {
+                    item(key = "people-header") {
+                        SectionLabel("People")
+                    }
+                    items(ui.users, key = { "user-${it.id}" }) { user ->
+                        SearchUserRow(
+                            user = user,
+                            opening = ui.openingUserId == user.id,
+                            onClick = { viewModel.openUser(user.id) },
+                        )
+                    }
+                }
+                if (ui.error != null && ui.users.isNotEmpty()) {
+                    item(key = "error") {
+                        Text(ui.error ?: "", color = BurtonIvory)
+                    }
+                }
+                if (ui.hits.isNotEmpty()) {
+                    item(key = "messages-header") {
+                        SectionLabel("Messages")
+                    }
+                    items(ui.hits, key = { "${it.channelId}-${it.message.ts}" }) { hit ->
+                        SearchHitRow(
+                            location = hitLocation(hit, snapshot),
+                            preview = Mrkdwn.display(hit.message.text, snapshot.users, snapshot.conversations),
+                            onClick = {
+                                val thread = hit.message.threadTs.takeIf { ts -> ts.isNotBlank() && ts != hit.message.ts }
+                                onOpenHit(hit.channelId, thread)
+                            },
+                        )
+                    }
+                }
+                if (ui.loading) {
+                    item(key = "loading") {
+                        Box(
+                            Modifier.fillMaxWidth().padding(top = 8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = BurtonSand, modifier = Modifier.size(28.dp))
+                        }
+                    }
                 }
             }
         }
@@ -125,12 +167,67 @@ fun SearchScreen(
 }
 
 @Composable
+private fun SectionLabel(title: String) {
+    Text(
+        title.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = BurtonMute,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun SearchUserRow(
+    user: SlackUser,
+    opening: Boolean,
+    onClick: () -> Unit,
+) {
+    val detail = when {
+        user.realName.isNotBlank() && !user.realName.equals(user.label, ignoreCase = true) -> user.realName
+        user.name.isNotBlank() && !user.name.equals(user.label, ignoreCase = true) -> "@${user.name}"
+        else -> ""
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BurtonCharcoal, RoundedCornerShape(16.dp))
+            .clickable(enabled = !opening, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        UserAvatar(url = user.imageUrl, name = user.label, size = 40.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                user.label,
+                style = MaterialTheme.typography.titleMedium,
+                color = BurtonIvory,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (detail.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    detail,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BurtonMute,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        if (opening) {
+            CircularProgressIndicator(color = BurtonSand, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        }
+    }
+}
+
+@Composable
 private fun SearchHitRow(
-    hit: SearchHit,
+    location: String,
     preview: String,
     onClick: () -> Unit,
 ) {
-    val channel = hit.channelName.ifBlank { hit.channelId }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -139,7 +236,7 @@ private fun SearchHitRow(
             .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(
-            "#$channel",
+            location,
             style = MaterialTheme.typography.labelSmall,
             color = BurtonSand,
         )
@@ -151,5 +248,14 @@ private fun SearchHitRow(
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+private fun hitLocation(hit: SearchHit, snapshot: SlackSnapshot): String {
+    val conversation = snapshot.conversation(hit.channelId)
+    return when {
+        conversation != null -> "${conversation.prefix()}${conversation.title(snapshot.users)}".trim()
+        hit.channelName.isNotBlank() -> "#${hit.channelName}"
+        else -> hit.channelId
     }
 }

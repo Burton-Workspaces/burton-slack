@@ -31,7 +31,8 @@ Connect with Slack runs OAuth 2.0 with PKCE (`burtonslack://oauth`). There is no
 | `conversations.history` / `conversations.replies` | Channel and thread |
 | `chat.postMessage` | Send |
 | `reactions.add` / `reactions.remove` | Emoji on a message |
-| `search.messages` | Search tab |
+| `search.messages` | Search tab messages |
+| `conversations.open` | Open a DM from Search |
 | `conversations.mark` | Mark a channel read when opened |
 
 Pagination follows `response_metadata.next_cursor` with a page cap.

@@ -21,7 +21,7 @@ User scopes the Slack app requests:
 | --- | --- |
 | `channels:history`, `channels:read` | Public channels |
 | `groups:history`, `groups:read` | Private channels |
-| `im:history`, `im:read`, `mpim:history`, `mpim:read` | Direct messages |
+| `im:history`, `im:read`, `im:write`, `mpim:history`, `mpim:read` | Direct messages |
 | `chat:write` | Send messages |
 | `users:read` | Names and avatars |
 | `search:read` | Search tab |
@@ -52,7 +52,7 @@ Replies under one parent message. Sending here sets `thread_ts`.
 
 ### Search
 
-Workspace `search.messages`. Tap a hit to open that channel (and thread when the hit is a reply).
+People from the workspace directory (username, display name, and real name), then workspace `search.messages`. Tap a person to open a DM. Tap a message to open that channel (and thread when the hit is a reply).
 
 ## Permissions
 

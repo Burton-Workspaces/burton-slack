@@ -35,6 +35,7 @@ class PkceTest {
         assertEquals("S256", query["code_challenge_method"])
         assertEquals("abc", query["state"])
         assertTrue(query["user_scope"].orEmpty().contains("chat:write"))
+        assertTrue(query["user_scope"].orEmpty().contains("im:write"))
         assertTrue(query["user_scope"].orEmpty().contains("files:read"))
         assertFalse(query.containsKey("client_secret"))
     }
