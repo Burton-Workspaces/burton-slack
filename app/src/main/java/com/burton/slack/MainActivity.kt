@@ -45,6 +45,7 @@ import com.burton.slack.ui.signin.SignInScreen
 import com.burton.slack.ui.theme.BurtonBlack
 import com.burton.slack.ui.theme.BurtonIvory
 import com.burton.slack.ui.theme.BurtonMute
+import com.burton.slack.report.ShakeToReport
 import com.burton.slack.ui.theme.BurtonSlackTheme
 import com.burton.slack.ui.thread.ThreadScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -52,6 +53,7 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     @Inject lateinit var repository: SlackRepository
+    private val shakeToReport by lazy { ShakeToReport(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +70,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        shakeToReport.start()
+    }
+
+    override fun onPause() {
+        shakeToReport.stop()
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {

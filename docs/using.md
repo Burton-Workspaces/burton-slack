@@ -54,6 +54,10 @@ Replies under one parent message. Sending here sets `thread_ts`.
 
 People from the workspace directory (username, display name, and real name), then workspace `search.messages`. Tap a person to open a DM. Tap a message to open that channel (and thread when the hit is a reply).
 
+### File an issue
+
+Shake the phone, or long-press **About** in Settings. Burton Issues opens on New issue with this app already selected. Nothing is posted until you submit; Back cancels.
+
 ## Permissions
 
 | Android | Permission | Why |

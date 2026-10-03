@@ -1,6 +1,8 @@
 package com.burton.slack.ui.settings
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,10 +17,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.burton.slack.BuildConfig
+import com.burton.slack.report.BurtonIssues
 import com.burton.slack.ui.components.FullScreenModal
 import com.burton.slack.ui.theme.BurtonCharcoal
 import com.burton.slack.ui.theme.BurtonDanger
@@ -56,19 +60,23 @@ fun SettingsModal(
             },
         )
         Spacer(Modifier.height(10.dp))
+        val context = LocalContext.current
         SettingsRow(
             title = "Burton Slack",
             subtitle = "About",
             trailing = BuildConfig.VERSION_NAME,
+            onLongClick = { BurtonIssues.openNewIssue(context) },
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SettingsRow(
     title: String,
     subtitle: String,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     trailing: String? = null,
     destructive: Boolean = false,
 ) {
@@ -76,7 +84,16 @@ private fun SettingsRow(
         modifier = Modifier
             .fillMaxWidth()
             .background(BurtonCharcoal, RoundedCornerShape(18.dp))
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(
+                when {
+                    onClick != null && onLongClick != null -> {
+                        Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+                    }
+                    onClick != null -> Modifier.clickable(onClick = onClick)
+                    onLongClick != null -> Modifier.combinedClickable(onClick = {}, onLongClick = onLongClick)
+                    else -> Modifier
+                },
+            )
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
