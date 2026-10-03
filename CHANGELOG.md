@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Automatic releases are produced by [release-please](https://github.com/googleapis/release-please)
 from [Conventional Commits](https://www.conventionalcommits.org/).
 
+## [1.4.0](https://github.com/Burton-Workspaces/burton-slack/compare/v1.3.1...v1.4.0) (2026-10-03)
+
+
+### Features
+
+* file issues by shaking or long-pressing About ([3508a48](https://github.com/Burton-Workspaces/burton-slack/commit/3508a489d4b49dcb7e496b29032caf1025620ac6))
+* search people by name and open DMs ([0d7c39d](https://github.com/Burton-Workspaces/burton-slack/commit/0d7c39def2a22c6c95ca4c1da6caa23a05b53ce4))
+
 ## [1.3.1](https://github.com/Burton-Workspaces/burton-slack/compare/v1.3.0...v1.3.1) (2026-10-03)
 
 
