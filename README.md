@@ -2,7 +2,7 @@
 
 A Slack client for Android with the same look as the other Burton apps. Sign in with **Connect with Slack**, then read channels and DMs, send messages, follow threads, and search.
 
-Signed APKs are published on [GitHub Releases](https://github.com/Burton-Workspaces/burton-slack/releases). Droidify / F-Droid: [burton-sonos-fdroid](https://github.com/Burton-Workspaces/burton-sonos-fdroid) (`https://burton-workspaces.github.io/burton-sonos-fdroid/fdroid/repo`).
+Signed APKs are published on [GitHub Releases](https://github.com/Burton-Workspaces/burton-slack/releases). Droidify / F-Droid: [burton-app-dist](https://github.com/Burton-Workspaces/burton-app-dist) (`https://burton-workspaces.github.io/burton-app-dist/fdroid/repo`).
 
 ## What it does
 
